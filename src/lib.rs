@@ -189,10 +189,10 @@ fn setup_api() -> ApiPointer {
 				Ok(s) if !s.is_empty() => s,
 				#[cfg(target_os = "windows")]
 				_ => "onnxruntime.dll".to_owned(),
-				#[cfg(any(target_os = "linux", target_os = "android"))]
-				_ => "libonnxruntime.so".to_owned(),
 				#[cfg(any(target_os = "macos", target_os = "ios"))]
-				_ => "libonnxruntime.dylib".to_owned()
+				_ => "libonnxruntime.dylib".to_owned(),
+				#[cfg(not(any(target_os = "windows", target_os = "macos", target_os = "ios")))]
+				_ => "libonnxruntime.so".to_owned()
 			}
 			.into();
 			load_dylib_from_path(&path).expect("Failed to load ONNX Runtime dylib");
