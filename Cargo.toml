@@ -60,7 +60,7 @@ tracing = [ "dep:tracing" ]
 fetch-models = [ "std", "dep:ureq", "dep:sha2" ]
 download-binaries = [ "ort-sys/download-binaries" ]
 preload-dylibs = [ "dep:libloading" ]
-load-dynamic = [ "std", "preload-dylibs", "ort-sys/disable-linking" ]
+load-dynamic = [ "std", "preload-dylibs", "ort-sys/disable-linking", "dep:libc" ]
 copy-dylibs = [ "ort-sys/copy-dylibs" ]
 pkg-config = [ "ort-sys/pkg-config" ]
 
@@ -114,6 +114,7 @@ num-complex = { version = "0.4", default-features = false, optional = true }
 ureq = { version = "3.1", optional = true, default-features = false }
 sha2 = { version = "0.10", optional = true }
 libloading = { version = "0.9", optional = true }
+libc = { version = "0.2", optional = true }
 
 [dev-dependencies]
 anyhow = "1.0"
