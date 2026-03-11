@@ -103,6 +103,18 @@ pub(crate) fn load_dylib_from_path(path: &std::path::Path) -> Result<bool> {
 				.join(path);
 			if relative.exists() { relative } else { path.to_path_buf() }
 		};
+		// On FreeBSD, dlopen with RTLD_NOW inside a spawn_blocking thread can deadlock
+		// because ORT's C++ constructors create threads that try to resolve symbols
+		// while the RTLD write lock is held. RTLD_LAZY defers symbol resolution out
+		// of the constructor window; RTLD_GLOBAL makes symbols globally visible.
+		#[cfg(target_os = "freebsd")]
+		let lib = unsafe {
+			use libloading::os::unix::Library as UnixLib;
+			UnixLib::open(Some(&absolute_path), libc::RTLD_LAZY | libc::RTLD_GLOBAL)
+				.map(libloading::Library::from)
+				.map_err(|e| Error::new(format!("failed to load from `{}`: {e}", absolute_path.display())))?
+		};
+		#[cfg(not(target_os = "freebsd"))]
 		let lib =
 			unsafe { libloading::Library::new(&absolute_path) }.map_err(|e| Error::new(format!("failed to load from `{}`: {e}", absolute_path.display())))?;
 
