@@ -247,13 +247,18 @@ impl Drop for Environment {
 /// Returns a handle to the currently active `Environment`. If one has not yet been committed (or an old environment
 /// has fallen out of usage), a new environment will be created & committed.
 pub fn current() -> Result<Arc<Environment>> {
+	eprintln!("[ort] environment::current: entry");
 	let mut env_lock = G_ENV.lock();
+	eprintln!("[ort] environment::current: acquired G_ENV lock");
 	if let Some(env) = env_lock.as_ref() {
+		eprintln!("[ort] environment::current: returning existing environment");
 		return Ok(env.clone());
 	}
 
+	eprintln!("[ort] environment::current: creating new environment");
 	let options = G_ENV_OPTIONS.get_or_init(EnvironmentBuilder::new);
 	let env = options.create_environment().map(Arc::new)?;
+	eprintln!("[ort] environment::current: environment created");
 	*env_lock = Some(Arc::clone(&env));
 
 	#[cfg(target_vendor = "apple")]
@@ -552,6 +557,7 @@ impl EnvironmentBuilder {
 	}
 
 	pub(crate) fn create_environment(&self) -> Result<Environment> {
+		eprintln!("[ort] create_environment: entry");
 		let logger = self
 			.logger
 			.as_ref()
@@ -559,11 +565,14 @@ impl EnvironmentBuilder {
 		#[cfg(feature = "tracing")]
 		let logger = logger.or(Some((crate::logging::tracing_logger, ptr::null_mut())));
 
+		eprintln!("[ort] create_environment: has_logger={} has_thread_pool={}", logger.is_some(), self.global_thread_pool_options.is_some());
+
 		let env_ptr = with_cstr(self.name.as_bytes(), &|name| {
 			let mut env_ptr: *mut ort_sys::OrtEnv = ptr::null_mut();
 			#[allow(clippy::collapsible_else_if)]
 			if let Some(thread_pool_options) = self.global_thread_pool_options.as_ref() {
 				if let Some((log_fn, log_ptr)) = logger {
+					eprintln!("[ort] create_environment: calling CreateEnvWithCustomLoggerAndGlobalThreadPools");
 					ortsys![
 						unsafe CreateEnvWithCustomLoggerAndGlobalThreadPools(
 							log_fn,
@@ -577,6 +586,7 @@ impl EnvironmentBuilder {
 					];
 					Ok(env_ptr)
 				} else {
+					eprintln!("[ort] create_environment: calling CreateEnvWithGlobalThreadPools");
 					ortsys![
 						unsafe CreateEnvWithGlobalThreadPools(
 							crate::logging::default_log_level(),
@@ -586,10 +596,12 @@ impl EnvironmentBuilder {
 						)?;
 						nonNull(env_ptr)
 					];
+					eprintln!("[ort] create_environment: CreateEnvWithGlobalThreadPools returned");
 					Ok(env_ptr)
 				}
 			} else {
 				if let Some((log_fn, log_ptr)) = logger {
+					eprintln!("[ort] create_environment: calling CreateEnvWithCustomLogger");
 					ortsys![
 						unsafe CreateEnvWithCustomLogger(
 							log_fn,
@@ -600,8 +612,10 @@ impl EnvironmentBuilder {
 						)?;
 						nonNull(env_ptr)
 					];
+					eprintln!("[ort] create_environment: CreateEnvWithCustomLogger returned");
 					Ok(env_ptr)
 				} else {
+					eprintln!("[ort] create_environment: calling CreateEnv");
 					ortsys![
 						unsafe CreateEnv(
 							crate::logging::default_log_level(),
@@ -610,10 +624,12 @@ impl EnvironmentBuilder {
 						)?;
 						nonNull(env_ptr)
 					];
+					eprintln!("[ort] create_environment: CreateEnv returned");
 					Ok(env_ptr)
 				}
 			}
 		})?;
+		eprintln!("[ort] create_environment: env_ptr acquired, continuing");
 
 		let _guard = run_on_drop(|| ortsys![unsafe ReleaseEnv(env_ptr.as_ptr())]);
 

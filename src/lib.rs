@@ -180,9 +180,11 @@ pub fn api() -> &'static ort_sys::OrtApi {
 #[cfg(not(any(feature = "alternative-backend", target_arch = "wasm32")))]
 #[cold]
 fn setup_api() -> ApiPointer {
+	eprintln!("[ort] setup_api: entry");
 	#[cfg(feature = "load-dynamic")]
 	let base = unsafe {
 		let dylib = if let Some(handle) = G_ORT_LIB.get() {
+			eprintln!("[ort] setup_api: dylib already loaded");
 			handle
 		} else {
 			let path: std::path::PathBuf = match std::env::var("ORT_DYLIB_PATH") {
@@ -195,19 +197,27 @@ fn setup_api() -> ApiPointer {
 				_ => "libonnxruntime.so".to_owned()
 			}
 			.into();
+			eprintln!("[ort] setup_api: loading dylib from {:?}", path);
 			load_dylib_from_path(&path).expect("Failed to load ONNX Runtime dylib");
+			eprintln!("[ort] setup_api: dylib loaded");
 			G_ORT_LIB.get_unchecked()
 		};
+		eprintln!("[ort] setup_api: getting OrtGetApiBase symbol");
 		let base_getter: libloading::Symbol<unsafe extern "C" fn() -> *const ort_sys::OrtApiBase> = dylib
 			.get(b"OrtGetApiBase")
 			.expect("`OrtGetApiBase` must be present in ONNX Runtime dylib");
-		base_getter()
+		eprintln!("[ort] setup_api: calling OrtGetApiBase");
+		let base = base_getter();
+		eprintln!("[ort] setup_api: OrtGetApiBase returned {:p}", base);
+		base
 	};
 	#[cfg(not(feature = "load-dynamic"))]
 	let base = unsafe { ort_sys::OrtGetApiBase() };
 
 	assert!(!base.is_null());
+	eprintln!("[ort] setup_api: calling GetApi(version={})", ort_sys::ORT_API_VERSION);
 	let api: *const ort_sys::OrtApi = unsafe { ((*base).GetApi)(ort_sys::ORT_API_VERSION) };
+	eprintln!("[ort] setup_api: GetApi returned {:p}", api);
 	ApiPointer(NonNull::new(api.cast_mut()).expect("Failed to initialize ORT API"))
 }
 
